@@ -11,27 +11,36 @@ def generate_random_color(base_color, variability=30):
     )
 
 
-def generate_random_dots(image_size, num_dots, base_color1, base_color2):
+def place_dot(draw, dot_positions, x, y, radius, fill_color):
+    dot_position = (x, y, radius)
+    if not any(np.hypot(x - dx, y - dy) < radius + dr for dx, dy, dr in dot_positions):
+        dot_positions.append(dot_position)
+        draw.ellipse((x - radius, y - radius, x + radius, y + radius), fill=fill_color)
+        return True
+    return False
+
+
+def generate_random_dots(image_size, base_color1, base_color2, number_positions):
     image = Image.new('RGBA', (image_size, image_size))
     draw = ImageDraw.Draw(image)
 
     dot_positions = []
     dot_sizes = [15, 12, 10, 8, 6, 5]  # Define sizes in descending order
 
-    for radius in dot_sizes:
-        for _ in range(num_dots // len(dot_sizes)):
-            placed = False
-            for _ in range(100):  # Try up to 100 times to place a dot
-                x, y = random.randint(radius, image_size - radius), random.randint(radius, image_size - radius)
-                fill_color = generate_random_color(base_color2 if random.random() < 0.5 else base_color1)
-                dot_position = (x, y, radius)
-                if not any(np.hypot(x - dx, y - dy) < radius + dr for dx, dy, dr in dot_positions):
-                    dot_positions.append(dot_position)
-                    draw.ellipse((x - radius, y - radius, x + radius, y + radius), fill=fill_color)
-                    placed = True
-                    break
-            if not placed:
+    # First, place the number dots
+    for x, y in number_positions:
+        while True:
+            radius = random.randint(5, 15)  # Random radius for dots
+            fill_color = generate_random_color(base_color2 if random.random() < 0.5 else base_color1)
+            if place_dot(draw, dot_positions, x, y, radius, fill_color):
                 break
+
+    # Now, place the background dots
+    for radius in dot_sizes:
+        for _ in range(1000):  # Adjust as necessary
+            x, y = random.randint(radius, image_size - radius), random.randint(radius, image_size - radius)
+            fill_color = generate_random_color(base_color2 if random.random() < 0.5 else base_color1)
+            place_dot(draw, dot_positions, x, y, radius, fill_color)
 
     # Make the image circular by adding a transparency mask
     mask = Image.new('L', (image_size, image_size), 0)
@@ -42,33 +51,23 @@ def generate_random_dots(image_size, num_dots, base_color1, base_color2):
     return image
 
 
-def embed_number_dots(image, number, font_path='arial.ttf', font_size=100, base_color1=(255, 0, 0),
-                      base_color2=(0, 255, 0)):
-    draw = ImageDraw.Draw(image)
+def get_number_positions(image_size, number, font_path='arial.ttf'):
+    font_size = image_size // 3  # Adjust the font size based on the image size
     font = ImageFont.truetype(font_path, font_size)
+    number_image = Image.new('L', (image_size, image_size), 0)
+    draw = ImageDraw.Draw(number_image)
 
-    # Create a mask for the number
-    number_mask = Image.new('L', (image.width, image.height), 0)
-    mask_draw = ImageDraw.Draw(number_mask)
-    bbox = mask_draw.textbbox((0, 0), str(number), font=font)
+    bbox = draw.textbbox((0, 0), str(number), font=font)
     width, height = bbox[2] - bbox[0], bbox[3] - bbox[1]
+    x = (image_size - width) // 2
+    y = (image_size - height) // 2
+    draw.text((x, y), str(number), fill=255, font=font)
 
-    x = (image.width - width) // 2
-    y = (image.height - height) // 2
-    mask_draw.text((x, y), str(number), fill=255, font=font)
+    number_array = np.array(number_image)
+    positions = [(j, i) for i in range(number_array.shape[0]) for j in range(number_array.shape[1]) if
+                 number_array[i, j] > 0]
 
-    # Convert the mask to an array
-    mask_array = np.array(number_mask)
-
-    # Draw dots on the number
-    for i in range(mask_array.shape[0]):
-        for j in range(mask_array.shape[1]):
-            if mask_array[i, j] > 0:
-                radius = random.randint(3, 7)
-                fill_color = generate_random_color(base_color2 if random.random() < 0.5 else base_color1)
-                draw.ellipse((j - radius, i - radius, j + radius, i + radius), fill=fill_color)
-
-    return image
+    return positions
 
 
 def simulate_color_blindness(image, blindness_type):
@@ -93,8 +92,7 @@ def simulate_color_blindness(image, blindness_type):
 
 
 def create_reverse_ishihara(number, blindness_type):
-    image_size = 500
-    num_dots = 1000  # Adjusted number of dots
+    image_size = 600  # Increase the image size for better clarity
 
     if blindness_type == 'deuteranopia':
         base_color1 = (0, 100, 0)  # Green
@@ -105,8 +103,8 @@ def create_reverse_ishihara(number, blindness_type):
     else:
         raise ValueError("Unsupported color blindness type")
 
-    normal_image = generate_random_dots(image_size, num_dots, base_color1, base_color2)
-    normal_image = embed_number_dots(normal_image, number, base_color1=base_color1, base_color2=base_color2)
+    number_positions = get_number_positions(image_size, number)
+    normal_image = generate_random_dots(image_size, base_color1, base_color2, number_positions)
 
     cb_image = simulate_color_blindness(normal_image, blindness_type)
 
