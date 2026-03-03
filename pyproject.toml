@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "reverse-ishihara"
+version = "1.0.0"
+description = "Generate reverse Ishihara-style comparison plates for normal and simulated color vision."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+  { name = "Daniel Häggström" },
+]
+dependencies = [
+  "colorspacious>=1.1.2,<2",
+  "numpy>=2,<3",
+  "Pillow>=12,<13",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=9,<10",
+]
+
+[tool.setuptools]
+py-modules = ["main"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
